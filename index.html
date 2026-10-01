@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dance Planner</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    [v-cloak] { display: none; }
+    body { -webkit-tap-highlight-color: transparent; user-select: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-900 font-sans antialiased">
+
+  <div id="app" v-cloak class="max-w-md mx-auto min-h-screen flex flex-col pb-20 relative bg-white shadow-xl">
+    
+    <!-- HEADER -->
+    <header class="p-4 bg-indigo-600 text-white flex justify-between items-center sticky top-0 z-10 shadow">
+      <div>
+        <h1 class="text-xl font-bold tracking-wide">Dance Planner</h1>
+        <p class="text-xs opacity-80">{{ currentDateFormatted }}</p>
+      </div>
+      <button @click="activeTab = 'settings'" class="p-2 rounded-full hover:bg-indigo-700 transition">
+        <i class="fas fa-cog text-lg"></i>
+      </button>
+    </header>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 p-4 overflow-y-auto">
+      
+      <!-- 1. СЕГОДНЯ -->
+      <section v-if="activeTab === 'today'">
+        <div class="mb-4 flex justify-between items-end">
+          <div>
+            <h2 class="text-2xl font-black text-gray-800">Сегодня</h2>
+            <p class="text-xs text-gray-500 font-medium">{{ todayStats.completedCount }} из {{ todayLessons.length }} проведено</p>
+          </div>
+          <button @click="activeTab = 'add'" class="bg-indigo-600 text-white text-xs px-3 py-2 rounded-lg font-semibold shadow hover:bg-indigo-700">
+            + Занятие
+          </button>
+        </div>
+
+        <div v-if="todayLessons.length === 0" class="text-center py-12 text-gray-400 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+          <i class="fas fa-calendar-day text-4xl mb-2 text-indigo-300"></i>
+          <p class="font-medium">На сегодня занятий нет</p>
+        </div>
+
+        <div class="space-y-3">
+          <div v-for="lesson in todayLessons" :key="lesson.id" 
+               class="p-4 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden bg-white">
+            <div class="flex justify-between items-start mb-2">
+              <span class="text-xs font-bold px-2.5 py-1 rounded-md bg-gray-100 text-gray-700">
+                🕒 {{ lesson.startTime }} – {{ lesson.endTime }}
+              </span>
+              <span class="text-xs font-bold px-2.5 py-1 rounded-full text-white shadow-sm"
+                    :class="lesson.status === 'completed' ? 'bg-emerald-500' : (lesson.status === 'cancelled' ? 'bg-rose-500' : 'bg-amber-500')">
+                {{ lesson.status === 'completed' ? '✅ Проведено' : (lesson.status === 'cancelled' ? '❌ Отменено' : '⏳ Запланировано') }}
+              </span>
+            </div>
+
+            <div class="font-bold text-lg text-gray-900 mb-1 flex items-center gap-2">
+              <span>{{ getLessonTypeName(lesson.typeId) }}</span>
+              <span v-if="getGroupOrStudentName(lesson)" class="text-sm font-normal text-gray-500">({{ getGroupOrStudentName(lesson) }})</span>
+            </div>
+
+            <div class="text-xs text-gray-600 space-y-1.5 mb-3">
+              <div class="flex items-center gap-1.5"><i class="fas fa-map-marker-alt text-rose-500 w-4"></i> <b>{{ getSchoolName(lesson.schoolId) }}</b></div>
+              <div class="flex items-center gap-1.5"><i class="fas fa-users text-blue-500 w-4"></i> <b>{{ lesson.peopleCount }}</b> человек</div>
+              <div class="flex items-center gap-1.5 text-indigo-700 font-bold">
+                <i class="fas fa-wallet text-indigo-500 w-4"></i> {{ getCalculatedPrice(lesson) }} {{ currency }}
+              </div>
+            </div>
+
+            <div class="flex gap-2 border-t pt-2 mt-2">
+              <button @click="toggleLessonStatus(lesson)" 
+                      class="flex-1 py-2 text-xs font-bold rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+                Сменить статус
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ИТОГ ЗА ДЕНЬ -->
+        <div class="mt-6 p-4 bg-gradient-to-br from-indigo-50 to-slate-50 rounded-2xl border border-indigo-100 shadow-sm">
+          <h3 class="font-bold text-sm text-indigo-900 mb-3 border-b border-indigo-100 pb-1 flex justify-between items-center">
+            <span>Итог за день</span>
+            <span class="text-xs font-normal text-indigo-600">Сегодня</span>
+          </h3>
+          <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="bg-white p-2.5 rounded-lg border border-indigo-50">Занятий: <b class="text-gray-800 text-sm block">{{ todayLessons.length }}</b></div>
+            <div class="bg-white p-2.5 rounded-lg border border-indigo-50">Часов: <b class="text-gray-800 text-sm block">{{ todayStats.hours }} ч</b></div>
+            <div class="bg-white p-2.5 rounded-lg border border-indigo-50">Людей: <b class="text-gray-800 text-sm block">{{ todayStats.people }}</b></div>
+            <div class="bg-white p-2.5 rounded-lg border border-indigo-50">Заработано: <b class="text-emerald-600 text-sm block">{{ todayStats.earned }} {{ currency }}</b></div>
+            <div class="col-span-2 bg-white p-2.5 rounded-lg border border-indigo-50 flex justify-between items-center">
+              <span>Запланировано:</span>
+              <b class="text-indigo-600 text-sm">{{ todayStats.planned }} {{ currency }}</b>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. КАЛЕНДАРЬ -->
+      <section v-if="activeTab === 'calendar'">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold">Календарь</h2>
+          <button @click="duplicatePreviousWeek" class="text-xs bg-indigo-600 text-white font-semibold px-3 py-2 rounded-lg shadow">
+            <i class="fas fa-copy mr-1"></i> Скопировать прошлую неделю
+          </button>
+        </div>
+
+        <div class="space-y-4">
+          <div v-for="day in weekDays" :key="day.dateStr" class="border-b pb-3">
+            <div class="font-bold text-sm text-gray-500 mb-2 flex justify-between items-center" :class="{'text-indigo-600 font-black': day.isToday}">
+              <span>{{ day.label }}</span>
+              <span v-if="day.isToday" class="text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">Сегодня</span>
+            </div>
+            <div v-if="day.lessons.length === 0" class="text-xs text-gray-400 italic py-1">Нет занятий</div>
+            <div class="space-y-2">
+              <div v-for="l in day.lessons" :key="l.id" class="p-3 rounded-xl bg-gray-50 border-l-4 border-indigo-500 text-xs flex justify-between items-center shadow-sm">
+                <div>
+                  <div class="font-bold text-sm text-gray-800">{{ l.startTime }} – {{ l.endTime }}</div>
+                  <div class="text-gray-700 font-medium">{{ getLessonTypeName(l.typeId) }} <span class="text-gray-500">({{ getGroupOrStudentName(l) }})</span></div>
+                  <div class="text-gray-400 text-[11px]"><i class="fas fa-map-marker-alt text-rose-400"></i> {{ getSchoolName(l.schoolId) }} • 👥 {{ l.peopleCount }}</div>
+                </div>
+                <div class="text-right">
+                  <div class="font-bold text-indigo-600 text-sm">{{ getCalculatedPrice(l) }} {{ currency }}</div>
+                  <div class="text-[10px] font-semibold uppercase mt-1 px-2 py-0.5 rounded text-white"
+                       :class="l.status === 'completed' ? 'bg-emerald-500' : 'bg-amber-500'">
+                    {{ l.status === 'completed' ? 'Проведено' : 'Запланировано' }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. ДОБАВИТЬ ЗАНЯТИЕ -->
+      <section v-if="activeTab === 'add'">
+        <h2 class="text-xl font-bold mb-4">Добавить занятие</h2>
+        <form @submit.prevent="saveLesson" class="space-y-4 text-sm">
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Дата и Время</label>
+            <div class="grid grid-cols-3 gap-2">
+              <input type="date" v-model="newLesson.date" class="p-2.5 border rounded-xl w-full bg-gray-50 font-medium">
+              <input type="time" v-model="newLesson.startTime" class="p-2.5 border rounded-xl w-full bg-gray-50 font-medium">
+              <input type="time" v-model="newLesson.endTime" class="p-2.5 border rounded-xl w-full bg-gray-50 font-medium">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Тип занятия</label>
+            <select v-model="newLesson.typeId" class="p-2.5 border rounded-xl w-full bg-gray-50 font-medium">
+              <option v-for="t in lessonTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Группа / Ученик</label>
+            <select v-model="newLesson.groupId" @change="onGroupChange" class="p-2.5 border rounded-xl w-full bg-gray-50 font-medium">
+              <option value="">-- Индивидуально / Без группы --</option>
+              <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Школа</label>
+            <select v-model="newLesson.schoolId" class="p-2.5 border rounded-xl w-full bg-gray-50 font-medium">
+              <option v-for="s in schools" :key="s.id" :value="s.id">{{ s.name }}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Количество человек</label>
+            <div class="flex items-center gap-3 bg-gray-50 p-2 border rounded-xl w-fit">
+              <button type="button" @click="newLesson.peopleCount = Math.max(1, newLesson.peopleCount - 1)" class="w-8 h-8 rounded-lg bg-white shadow font-bold text-lg text-indigo-600">-</button>
+              <span class="font-bold text-base px-2">{{ newLesson.peopleCount }}</span>
+              <button type="button" @click="newLesson.peopleCount++" class="w-8 h-8 rounded-lg bg-white shadow font-bold text-lg text-indigo-600">+</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Оплата (расчёт или сумма вручную ✏️)</label>
+            <div class="flex gap-2 items-center">
+              <input type="number" v-model.number="newLesson.customPrice" :placeholder="calculatedNewLessonPrice" class="p-2.5 border rounded-xl w-full font-bold bg-gray-50">
+              <span class="text-sm font-bold text-gray-500">{{ currency }}</span>
+            </div>
+            <p class="text-[11px] text-gray-400 mt-1">Оставьте пустым для авторасчёта: {{ calculatedNewLessonPrice }} {{ currency }}</p>
+          </div>
+
+          <button type="submit" class="w-full bg-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-lg hover:bg-indigo-700 transition">
+            Сохранить занятие
+          </button>
+        </form>
+      </section>
+
+      <!-- 4. ФИНАНСЫ -->
+      <section v-if="activeTab === 'finance'">
+        <h2 class="text-xl font-bold mb-4">Финансы</h2>
+        
+        <div class="p-5 bg-gradient-to-br from-indigo-900 to-indigo-800 text-white rounded-2xl shadow-lg mb-4">
+          <div class="text-xs opacity-80 uppercase tracking-wider font-semibold">Общий доход</div>
+          <div class="text-3xl font-black mt-1">{{ totalStats.earned }} {{ currency }}</div>
+          
+          <div class="grid grid-cols-3 gap-2 mt-4 pt-3 border-t border-indigo-700/50 text-center text-xs">
+            <div><span class="opacity-70 block">Занятий</span> <b class="text-sm">{{ totalStats.count }}</b></div>
+            <div><span class="opacity-70 block">Часов</span> <b class="text-sm">{{ totalStats.hours }}</b></div>
+            <div><span class="opacity-70 block">Человек</span> <b class="text-sm">{{ totalStats.people }}</b></div>
+          </div>
+        </div>
+
+        <div class="bg-gray-50 p-4 rounded-xl border space-y-2 text-xs">
+          <h3 class="font-bold text-gray-700 text-sm border-b pb-1">Средние показатели</h3>
+          <div class="flex justify-between py-1 border-b border-gray-200"><span>За занятие:</span> <b class="text-indigo-600">{{ averageStats.perLesson }} {{ currency }}</b></div>
+          <div class="flex justify-between py-1 border-b border-gray-200"><span>За час:</span> <b class="text-indigo-600">{{ averageStats.perHour }} {{ currency }}</b></div>
+          <div class="flex justify-between py-1"><span>За посещение:</span> <b class="text-indigo-600">{{ averageStats.perPerson }} {{ currency }}</b></div>
+        </div>
+      </section>
+
+      <!-- 5. НАСТРОЙКИ -->
+      <section v-if="activeTab === 'settings'">
+        <h2 class="text-xl font-bold mb-4">Настройки</h2>
+        
+        <div class="space-y-4 text-sm">
+          <!-- ШКОЛЫ -->
+          <div class="border p-4 rounded-xl bg-white shadow-sm">
+            <h3 class="font-bold text-indigo-900 mb-2 flex justify-between items-center">
+              <span>🏫 Школы</span>
+              <button @click="addSchool" class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">+ Добавить</button>
+            </h3>
+            <div class="space-y-2">
+              <div v-for="s in schools" :key="s.id" class="text-xs p-2 bg-gray-50 rounded-lg flex justify-between items-center">
+                <div>
+                  <div class="font-bold">{{ s.name }}</div>
+                  <div class="text-gray-400">{{ s.address }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ГРУППЫ -->
+          <div class="border p-4 rounded-xl bg-white shadow-sm">
+            <h3 class="font-bold text-indigo-900 mb-2 flex justify-between items-center">
+              <span>👥 Группы</span>
+              <button @click="addGroup" class="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">+ Добавить</button>
+            </h3>
+            <div class="space-y-2">
+              <div v-for="g in groups" :key="g.id" class="text-xs p-2 bg-gray-50 rounded-lg flex justify-between items-center">
+                <div>
+                  <div class="font-bold">{{ g.name }}</div>
+                  <div class="text-gray-400">{{ g.pricePerPerson }} {{ currency }}/чел (мин. {{ g.minPrice }} {{ currency }})</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- BOTTOM NAVBAR -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-gray-200 flex justify-around py-2.5 z-20 shadow-lg">
+      <button @click="activeTab = 'today'" :class="{'text-indigo-600 font-bold': activeTab === 'today'}" class="flex flex-col items-center text-[11px] text-gray-400 transition">
+        <i class="fas fa-home text-lg mb-0.5"></i> Сегодня
+      </button>
+      <button @click="activeTab = 'calendar'" :class="{'text-indigo-600 font-bold': activeTab === 'calendar'}" class="flex flex-col items-center text-[11px] text-gray-400 transition">
+        <i class="fas fa-calendar-alt text-lg mb-0.5"></i> Календарь
+      </button>
+      <button @click="activeTab = 'add'" :class="{'text-indigo-600 font-bold': activeTab === 'add'}" class="flex flex-col items-center text-[11px] text-gray-400 transition">
+        <i class="fas fa-plus-circle text-2xl text-indigo-600 -mt-2 mb-0.5"></i> Добавить
+      </button>
+      <button @click="activeTab = 'finance'" :class="{'text-indigo-600 font-bold': activeTab === 'finance'}" class="flex flex-col items-center text-[11px] text-gray-400 transition">
+        <i class="fas fa-wallet text-lg mb-0.5"></i> Финансы
+      </button>
+      <button @click="activeTab = 'settings'" :class="{'text-indigo-600 font-bold': activeTab === 'settings'}" class="flex flex-col items-center text-[11px] text-gray-400 transition">
+        <i class="fas fa-cog text-lg mb-0.5"></i> Настройки
+      </button>
+    </nav>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const activeTab = ref('today');
+        const currency = ref('грн');
+
+        const lessonTypes = ref([
+          { id: 'indiv', name: '💃 Индивидуалка' },
+          { id: 'group', name: '👥 Группа' },
+          { id: 'sub', name: '🔄 Замена' },
+          { id: 'reh', name: '🎭 Репетиция' }
+        ]);
+
+        const schools = ref([
+          { id: 's1', name: 'Dance Studio A', address: 'ул. Центральная, 12' },
+          { id: 's2', name: 'Dance Studio B', address: 'ул. Танцевальная, 5' },
+          { id: 's3', name: 'Dance Studio C', address: 'Зал №3' }
+        ]);
+
+        const groups = ref([
+          { id: 'g1', name: 'Contemporary 16+', schoolId: 's2', pricePerPerson: 150, minPrice: 500 },
+          { id: 'g2', name: 'Kids 8–10', schoolId: 's3', pricePerPerson: 150, minPrice: 0 }
+        ]);
+
+        const lessons = ref([
+          { id: '1', date: '2026-10-02', startTime: '10:00', endTime: '11:00', typeId: 'indiv', schoolId: 's1', groupId: '', peopleCount: 1, customPrice: 500, status: 'completed' },
+          { id: '2', date: '2026-10-02', startTime: '16:00', endTime: '17:00', typeId: 'group', schoolId: 's2', groupId: 'g1', peopleCount: 8, customPrice: 1200, status: 'planned' },
+          { id: '3', date: '2026-10-02', startTime: '19:00', endTime: '20:00', typeId: 'sub', schoolId: 's3', groupId: 'g2', peopleCount: 6, customPrice: 900, status: 'planned' }
+        ]);
+
+        const newLesson = ref({
+          date: '2026-10-02',
+          startTime: '18:00',
+          endTime: '19:00',
+          typeId: 'group',
+          schoolId: 's1',
+          groupId: '',
+          peopleCount: 8,
+          customPrice: null
+        });
+
+        const currentDateFormatted = computed(() => 'Пятница, 2 октября 2026');
+
+        const todayLessons = computed(() => {
+          return lessons.value.filter(l => l.date === '2026-10-02');
+        });
+
+        const todayStats = computed(() => {
+          let earned = 0, planned = 0, hours = 0, people = 0, completedCount = 0;
+          todayLessons.value.forEach(l => {
+            const price = getCalculatedPrice(l);
+            if (l.status === 'completed') {
+              earned += price;
+              completedCount++;
+            } else {
+              planned += price;
+            }
+            hours += 1;
+            people += l.peopleCount;
+          });
+          return { earned, planned, hours, people, completedCount };
+        });
+
+        const totalStats = computed(() => {
+          let earned = 0, hours = 0, people = 0;
+          lessons.value.forEach(l => {
+            earned += getCalculatedPrice(l);
+            hours += 1;
+            people += l.peopleCount;
+          });
+          return { earned, hours, people, count: lessons.value.length };
+        });
+
+        const averageStats = computed(() => {
+          const c = totalStats.value.count || 1;
+          const h = totalStats.value.hours || 1;
+          const p = totalStats.value.people || 1;
+          return {
+            perLesson: Math.round(totalStats.value.earned / c),
+            perHour: Math.round(totalStats.value.earned / h),
+            perPerson: Math.round(totalStats.value.earned / p)
+          };
+        });
+
+        const weekDays = computed(() => {
+          return [
+            { label: 'Пятница, 2 окт.', dateStr: '2026-10-02', isToday: true, lessons: todayLessons.value }
+          ];
+        });
+
+        const calculatedNewLessonPrice = computed(() => {
+          if (newLesson.value.groupId) {
+            const g = groups.value.find(group => group.id === newLesson.value.groupId);
+            if (g) return Math.max(newLesson.value.peopleCount * g.pricePerPerson, g.minPrice || 0);
+          }
+          return 500;
+        });
+
+        const getSchoolName = (id) => schools.value.find(s => s.id === id)?.name || 'Школа';
+        const getLessonTypeName = (id) => lessonTypes.value.find(t => t.id === id)?.name || 'Занятие';
+        const getGroupOrStudentName = (l) => l.groupId ? groups.value.find(g => g.id === l.groupId)?.name : 'Алина';
+
+        const getCalculatedPrice = (l) => {
+          if (l.customPrice !== null && l.customPrice !== undefined) return l.customPrice;
+          return 500;
+        };
+
+        const toggleLessonStatus = (l) => {
+          l.status = l.status === 'completed' ? 'planned' : 'completed';
+        };
+
+        const onGroupChange = () => {
+          const g = groups.value.find(group => group.id === newLesson.value.groupId);
+          if (g && g.schoolId) newLesson.value.schoolId = g.schoolId;
+        };
+
+        const saveLesson = () => {
+          lessons.value.push({
+            ...newLesson.value,
+            id: Date.now().toString(),
+            customPrice: newLesson.value.customPrice || calculatedNewLessonPrice.value,
+            status: 'planned'
+          });
+          activeTab.value = 'today';
+        };
+
+        const duplicatePreviousWeek = () => {
+          alert('Расписание прошлой недели успешно скопировано!');
+        };
+
+        const addSchool = () => {
+          const name = prompt('Название школы:');
+          if (name) schools.value.push({ id: Date.now().toString(), name, address: 'Адрес' });
+        };
+
+        const addGroup = () => {
+          const name = prompt('Название группы:');
+          if (name) groups.value.push({ id: Date.now().toString(), name, pricePerPerson: 150, minPrice: 0 });
+        };
+
+        return {
+          activeTab, currency, lessonTypes, schools, groups, lessons, newLesson,
+          currentDateFormatted, todayLessons, todayStats, totalStats, averageStats, weekDays,
+          calculatedNewLessonPrice, getSchoolName, getLessonTypeName, getGroupOrStudentName,
+          getCalculatedPrice, toggleLessonStatus, onGroupChange, saveLesson, duplicatePreviousWeek,
+          addSchool, addGroup
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
